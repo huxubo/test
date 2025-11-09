@@ -46,18 +46,29 @@ class PowerDnsProvider implements DnsProviderInterface
         $recordName = $this->recordName($domain, $label);
         $url = sprintf('%s/servers/%s/zones/%s', rtrim($this->baseUrl(), '/'), rawurlencode($this->serverId()), rawurlencode($zoneName));
         $records = array_map(
-            fn($ns) => ['content' => $ns, 'disabled' => false],
+            static function (string $ns): array {
+                $normalized = rtrim(trim($ns), '.') . '.';
+                return [
+                    'content' => $normalized,
+                    'disabled' => false,
+                ];
+            },
             $nsRecords
         );
 
+        $rrset = [
+            'name' => $recordName,
+            'type' => 'NS',
+            'ttl' => 3600,
+            'changetype' => empty($records) ? 'DELETE' : 'REPLACE',
+        ];
+
+        if (!empty($records)) {
+            $rrset['records'] = $records;
+        }
+
         $payload = [
-            'rrsets' => [[
-                'name' => $recordName,
-                'type' => 'NS',
-                'ttl' => 3600,
-                'changetype' => empty($records) ? 'DELETE' : 'REPLACE',
-                'records' => $records,
-            ]],
+            'rrsets' => [$rrset],
         ];
 
         $response = $this->http->request('PATCH', $url, $this->headers(), $payload);
