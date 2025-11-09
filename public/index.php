@@ -33,6 +33,9 @@ $router->get('/dashboard', [$dashboardController, 'index']);
 $router->post('/subdomains', [$dashboardController, 'storeSubdomain']);
 $router->get('/subdomains/check', [$dashboardController, 'checkAvailability']);
 $router->post('/subdomains/transfer', [$dashboardController, 'transfer']);
+$router->post('/subdomains/update', [$dashboardController, 'updateSubdomain']);
+$router->post('/subdomains/renew', [$dashboardController, 'renewSubdomain']);
+$router->post('/subdomains/delete', [$dashboardController, 'deleteSubdomain']);
 
 $router->get('/admin', [$adminController, 'dashboard']);
 $router->get('/admin/settings', [$adminController, 'settings']);
