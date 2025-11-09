@@ -45,13 +45,13 @@ class UserService
                 'subdomain_quota' => $quota,
             ]);
 
+            $this->emailService->sendVerificationEmail($user, $token);
+
             $pdo->commit();
         } catch (\Throwable $e) {
             $pdo->rollBack();
             throw $e;
         }
-
-        $this->emailService->sendVerificationEmail($user, $token);
 
         Session::flash('success', '注册成功，请前往邮箱完成验证');
 

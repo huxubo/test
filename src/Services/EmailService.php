@@ -5,6 +5,8 @@ namespace Services;
 
 use Core\Config;
 use Models\User;
+use RuntimeException;
+use Services\Mail\SmtpMailer;
 
 /**
  * 邮件发送服务
@@ -33,36 +35,79 @@ HTML;
     public function send(string $to, string $subject, string $htmlMessage): void
     {
         $config = Config::getInstance()->get('mail');
-        $fromAddress = $config['from_address'] ?? 'no-reply@example.com';
-        $fromName = $config['from_name'] ?? '系统通知';
-
-        $headers = [];
-        $headers[] = 'MIME-Version: 1.0';
-        $headers[] = 'Content-type: text/html; charset=UTF-8';
-        $headers[] = 'From: ' . $fromName . ' <' . $fromAddress . '>';
-
-        if (($config['transport'] ?? 'mail') === 'mail') {
-            @mail($to, $subject, $htmlMessage, implode("\r\n", $headers));
+        if (!is_array($config)) {
+            $config = [];
         }
 
-        $this->logEmail($to, $subject, $htmlMessage);
+        $fromAddress = (string)($config['from_address'] ?? 'no-reply@example.com');
+        $fromName = (string)($config['from_name'] ?? '系统通知');
+
+        $headers = [
+            'MIME-Version: 1.0',
+            'Content-type: text/html; charset=UTF-8',
+            'From: ' . $fromName . ' <' . $fromAddress . '>',
+        ];
+
+        $transport = strtolower((string)($config['transport'] ?? 'mail'));
+        $success = false;
+        $errorMessage = null;
+
+        if ($transport === 'smtp') {
+            $smtpConfig = $config['smtp'] ?? [];
+            if (!is_array($smtpConfig)) {
+                $smtpConfig = [];
+            }
+
+            try {
+                $mailer = new SmtpMailer($smtpConfig);
+                $mailer->send($fromAddress, $fromName, $to, $subject, $htmlMessage, $headers);
+                $success = true;
+            } catch (\Throwable $e) {
+                $errorMessage = $e->getMessage();
+            }
+        } elseif ($transport === 'mail') {
+            if (!function_exists('mail')) {
+                $errorMessage = 'mail() 函数不可用';
+            } else {
+                $success = mail($to, $subject, $htmlMessage, implode("\r\n", $headers));
+                if (!$success) {
+                    $errorMessage = 'mail() 调用失败';
+                }
+            }
+        } else {
+            $errorMessage = '不支持的邮件发送方式: ' . $transport;
+        }
+
+        $this->logEmail($to, $subject, $htmlMessage, $success, $errorMessage);
+
+        if (!$success) {
+            throw new RuntimeException('邮件发送失败，请稍后重试');
+        }
     }
 
     /**
      * 将邮件记录到日志文件，方便开发调试
      */
-    private function logEmail(string $to, string $subject, string $body): void
+    private function logEmail(string $to, string $subject, string $body, bool $success, ?string $errorMessage = null): void
     {
         $logDir = __DIR__ . '/../../storage/logs';
         if (!is_dir($logDir)) {
             mkdir($logDir, 0775, true);
         }
 
+        $statusText = $success ? 'SENT' : 'FAILED';
+        $errorDetails = '';
+        if ($errorMessage !== null && $errorMessage !== '') {
+            $errorDetails = ' (' . str_replace(["\r", "\n"], ' ', $errorMessage) . ')';
+        }
+
         $message = sprintf(
-            "[%s] To: %s\nSubject: %s\nBody:\n%s\n\n",
+            "[%s] To: %s\nSubject: %s\nStatus: %s%s\nBody:\n%s\n\n",
             date('Y-m-d H:i:s'),
             $to,
             $subject,
+            $statusText,
+            $errorDetails,
             strip_tags($body)
         );
 
