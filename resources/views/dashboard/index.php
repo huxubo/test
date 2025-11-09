@@ -51,23 +51,34 @@ ob_start();
             <th>注册时间</th>
             <th>到期时间</th>
             <th>转移</th>
+            <th>管理</th>
         </tr>
         </thead>
         <tbody>
         <?php if (empty($subdomains)): ?>
             <tr>
-                <td colspan="6">暂无子域记录</td>
+                <td colspan="7">暂无子域记录</td>
             </tr>
         <?php else: ?>
             <?php foreach ($subdomains as $subdomain): ?>
-                <?php $primary = $subdomain->primaryDomain(); ?>
+                <?php
+                $primary = $subdomain->primaryDomain();
+                $primaryDomainName = $primary?->domain_name ?? '';
+                $displayDomain = $primaryDomainName !== '' ? $subdomain->label . '.' . $primaryDomainName : $subdomain->label;
+                $nsList = $subdomain->nsRecordArray();
+                $nsTextareaValue = implode(PHP_EOL, $nsList);
+                ?>
                 <tr>
-                    <td><?= e($subdomain->label . '.' . $primary->domain_name) ?></td>
+                    <td><?= e($displayDomain) ?></td>
                     <td><?= e($subdomain->status) ?></td>
                     <td>
-                        <?php foreach ($subdomain->nsRecordArray() as $ns): ?>
-                            <div><?= e($ns) ?></div>
-                        <?php endforeach; ?>
+                        <?php if (empty($nsList)): ?>
+                            <div>-</div>
+                        <?php else: ?>
+                            <?php foreach ($nsList as $ns): ?>
+                                <div><?= e($ns) ?></div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
                     </td>
                     <td><?= e($subdomain->registered_at ?? '-') ?></td>
                     <td><?= e($subdomain->expires_at ?? '-') ?></td>
@@ -77,6 +88,29 @@ ob_start();
                             <input type="hidden" name="subdomain_id" value="<?= $subdomain->id ?>">
                             <input type="email" name="to_email" placeholder="目标用户邮箱" required>
                             <button type="submit" class="secondary">转移</button>
+                        </form>
+                    </td>
+                    <td>
+                        <details style="margin-bottom:8px;">
+                            <summary>编辑 NS</summary>
+                            <form method="post" action="<?= base_url('subdomains/update') ?>" style="margin-top:8px;">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="subdomain_id" value="<?= $subdomain->id ?>">
+                                <textarea name="ns_records" rows="3" required placeholder="每行一条 NS 记录" style="width:100%; margin-bottom:8px;"><?= e($nsTextareaValue) ?></textarea>
+                                <button type="submit">保存</button>
+                            </form>
+                        </details>
+                        <?php if ($subdomain->status === 'active' && $subdomain->expires_at): ?>
+                            <form method="post" action="<?= base_url('subdomains/renew') ?>" style="margin-bottom:8px;">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="subdomain_id" value="<?= $subdomain->id ?>">
+                                <button type="submit">续期</button>
+                            </form>
+                        <?php endif; ?>
+                        <form method="post" action="<?= base_url('subdomains/delete') ?>" onsubmit="return confirm('确认删除该子域？此操作不可恢复。');">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="subdomain_id" value="<?= $subdomain->id ?>">
+                            <button type="submit" class="secondary">删除</button>
                         </form>
                     </td>
                 </tr>

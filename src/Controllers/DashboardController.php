@@ -137,6 +137,103 @@ class DashboardController
     }
 
     /**
+     * 更新子域 NS 记录
+     */
+    public function updateSubdomain(): void
+    {
+        $user = Auth::user();
+        if (!$user) {
+            redirect('/login');
+        }
+
+        $subdomainId = (int)($_POST['subdomain_id'] ?? 0);
+        $nsInput = (string)($_POST['ns_records'] ?? '');
+
+        $subdomain = Subdomain::find($subdomainId);
+        if (!$subdomain || $subdomain->user_id !== $user->id) {
+            Session::flash('error', '只能管理属于自己的子域');
+            redirect('/dashboard');
+        }
+
+        $lines = preg_split('/\r\n|\n|\r/', $nsInput) ?: [];
+        $nsRecords = array_values(array_filter(array_map(
+            static fn(string $line): string => trim($line),
+            $lines
+        )));
+
+        if (empty($nsRecords)) {
+            Session::flash('error', '请至少填写一条有效的 NS 记录');
+            redirect('/dashboard');
+        }
+
+        $service = new SubdomainService();
+        try {
+            $service->updateRecords($subdomain, $nsRecords);
+            Session::flash('success', '子域 NS 记录已更新');
+        } catch (RuntimeException $e) {
+            Session::flash('error', $e->getMessage());
+        }
+
+        redirect('/dashboard');
+    }
+
+    /**
+     * 续期子域
+     */
+    public function renewSubdomain(): void
+    {
+        $user = Auth::user();
+        if (!$user) {
+            redirect('/login');
+        }
+
+        $subdomainId = (int)($_POST['subdomain_id'] ?? 0);
+        $subdomain = Subdomain::find($subdomainId);
+        if (!$subdomain || $subdomain->user_id !== $user->id) {
+            Session::flash('error', '只能管理属于自己的子域');
+            redirect('/dashboard');
+        }
+
+        $service = new SubdomainService();
+        try {
+            $service->renew($subdomain);
+            Session::flash('success', '子域已成功续期');
+        } catch (RuntimeException $e) {
+            Session::flash('error', $e->getMessage());
+        }
+
+        redirect('/dashboard');
+    }
+
+    /**
+     * 删除子域
+     */
+    public function deleteSubdomain(): void
+    {
+        $user = Auth::user();
+        if (!$user) {
+            redirect('/login');
+        }
+
+        $subdomainId = (int)($_POST['subdomain_id'] ?? 0);
+        $subdomain = Subdomain::find($subdomainId);
+        if (!$subdomain || $subdomain->user_id !== $user->id) {
+            Session::flash('error', '只能管理属于自己的子域');
+            redirect('/dashboard');
+        }
+
+        $service = new SubdomainService();
+        try {
+            $service->delete($subdomain);
+            Session::flash('success', '子域已删除');
+        } catch (RuntimeException $e) {
+            Session::flash('error', $e->getMessage());
+        }
+
+        redirect('/dashboard');
+    }
+
+    /**
      * 输出 JSON 响应
      */
     private function json(array $data): void

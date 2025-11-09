@@ -151,6 +151,91 @@ class SubdomainService
         return $transfer;
     }
 
+    /**
+     * 更新子域 NS 记录
+     * @param array<int,string> $nsRecords
+     */
+    public function updateRecords(Subdomain $subdomain, array $nsRecords): void
+    {
+        $domain = $subdomain->primaryDomain();
+        if (!$domain) {
+            throw new RuntimeException('主域不存在');
+        }
+
+        $nsRecords = array_values(array_filter(array_map(
+            static fn(string $ns): string => trim($ns),
+            $nsRecords
+        )));
+        $nsRecords = array_values(array_unique($nsRecords));
+
+        if (empty($nsRecords)) {
+            throw new RuntimeException('请至少填写一条有效的 NS 记录');
+        }
+
+        if ($subdomain->status === 'active') {
+            $provider = $this->resolveProvider($domain);
+            $provider->upsertNsRecords($domain, $subdomain->label, $nsRecords);
+        }
+
+        $subdomain->updateNsRecords($nsRecords);
+    }
+
+    /**
+     * 续期子域
+     */
+    public function renew(Subdomain $subdomain): void
+    {
+        if ($subdomain->status !== 'active') {
+            throw new RuntimeException('仅已激活的子域可续期');
+        }
+
+        if (!$subdomain->expires_at) {
+            throw new RuntimeException('子域尚未设置到期时间');
+        }
+
+        $daysSetting = Setting::get('subdomain.renew_valid_days');
+        if ($daysSetting === null) {
+            $daysSetting = Setting::get('subdomain.initial_valid_days', '365');
+        }
+
+        $days = (int)$daysSetting;
+        if ($days <= 0) {
+            $days = 365;
+        }
+
+        $currentExpiry = strtotime((string)$subdomain->expires_at);
+        if ($currentExpiry === false) {
+            $currentExpiry = time();
+        }
+
+        $base = max($currentExpiry, time());
+        $newExpiry = date('Y-m-d H:i:s', strtotime('+' . $days . ' days', $base));
+
+        $pdo = Database::connection();
+        $table = Subdomain::table();
+        $stmt = $pdo->prepare("UPDATE `{$table}` SET expires_at = :expires_at, updated_at = NOW() WHERE id = :id");
+        $stmt->execute([
+            'expires_at' => $newExpiry,
+            'id' => $subdomain->id,
+        ]);
+
+        $subdomain->expires_at = $newExpiry;
+    }
+
+    /**
+     * 删除子域
+     */
+    public function delete(Subdomain $subdomain): void
+    {
+        $domain = $subdomain->primaryDomain();
+        if ($domain && $subdomain->status === 'active') {
+            $provider = $this->resolveProvider($domain);
+            $provider->upsertNsRecords($domain, $subdomain->label, []);
+        }
+
+        $subdomain->delete();
+    }
+
     private function normalizeLabel(string $label): string
     {
         $label = strtolower(trim($label));

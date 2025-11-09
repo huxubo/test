@@ -124,6 +124,13 @@ class Subdomain extends BaseModel
         $this->user_id = $userId;
     }
 
+    public function delete(): void
+    {
+        $pdo = Database::connection();
+        $stmt = $pdo->prepare('DELETE FROM `' . self::table() . '` WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $this->id]);
+    }
+
     /**
      * 解析 NS 记录
      * @return array<int,string>
