@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Controllers;
+namespace app\controller;
 
 use Core\Auth;
 use Core\Session;

@@ -3,6 +3,24 @@ declare(strict_types=1);
 
 // 自动加载类文件
 spl_autoload_register(function (string $class): void {
+    $prefixes = [
+        'think\\' => __DIR__ . '/../think/',
+        'app\\' => __DIR__ . '/../app/',
+    ];
+
+    foreach ($prefixes as $prefix => $baseDir) {
+        if (str_starts_with($class, $prefix)) {
+            $relativeClass = substr($class, strlen($prefix));
+            $file = $baseDir . str_replace('\\', DIRECTORY_SEPARATOR, $relativeClass) . '.php';
+
+            if (file_exists($file)) {
+                require_once $file;
+            }
+
+            return;
+        }
+    }
+
     $baseDir = __DIR__ . DIRECTORY_SEPARATOR;
     $classPath = str_replace('\\', DIRECTORY_SEPARATOR, $class);
     $file = $baseDir . $classPath . '.php';
