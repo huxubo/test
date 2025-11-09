@@ -1,0 +1,809 @@
+[1mdiff --git a/README.md b/README.md[m
+[1mindex f08b225..eea8506 100644[m
+[1m--- a/README.md[m
+[1m+++ b/README.md[m
+[36m@@ -1,6 +1,6 @@[m
+ # 子域分发管理系统[m
+ [m
+[31m-本项目使用原生 PHP + MySQL 构建，用于在多个 DNS 平台（PowerDNS、Cloudflare、阿里云 DNS、DNSPod）之间统一管理主域，并为最终用户分发子域。系统支持邮箱验证注册、子域申请与审核、子域信息查询、账号间转移等功能。[m
+[32m+[m[32m本项目基于轻量化的 ThinkPHP 风格运行时（自研 kernel）+ MySQL 构建，用于在多个 DNS 平台（PowerDNS、Cloudflare、阿里云 DNS、DNSPod）之间统一管理主域，并为最终用户分发子域。系统支持邮箱验证注册、子域申请与审核、子域信息查询、账号间转移等功能。[m
+ [m
+ ## 功能特性[m
+ [m
+[36m@@ -15,6 +15,12 @@[m
+   - 子域审核模式、有效期[m
+   - 用户初始子域配额[m
+ [m
+[32m+[m[32m## 框架迁移说明[m
+[32m+[m
+[32m+[m[32m- 核心入口采用 `think\App`，通过 `public/index.php` 调用 `think/bootstrap.php` 完成引导。[m
+[32m+[m[32m- 业务控制器移至 `app/controller`，命名空间调整为 `app\\controller`，与 ThinkPHP 控制器约定保持一致。[m
+[32m+[m[32m- 所有路由定义集中到 `route/app.php`，支持 `控制器@方法` 的声明方式，便于后续扩展中间件、分组等能力。[m
+[32m+[m
+ ## 环境要求[m
+ [m
+ - PHP >= 8.1，启用 PDO MySQL、cURL 扩展[m
+[1mdiff --git a/public/index.php b/public/index.php[m
+[1mindex 1aa72de..61ebc0f 100644[m
+[1m--- a/public/index.php[m
+[1m+++ b/public/index.php[m
+[36m@@ -1,62 +1,10 @@[m
+ <?php[m
+ declare(strict_types=1);[m
+ [m
+[31m-require_once __DIR__ . '/../src/bootstrap.php';[m
+[32m+[m[32mrequire_once __DIR__ . '/../think/bootstrap.php';[m
+ [m
+[31m-use Controllers\AdminController;[m
+[31m-use Controllers\AuthController;[m
+[31m-use Controllers\DashboardController;[m
+[31m-use Core\Router;[m
+[31m-use Core\Session;[m
+[32m+[m[32m$app = new \think\App();[m
+[32m+[m[32mapp($app);[m
+ [m
+[31m-$router = new Router();[m
+[31m-[m
+[31m-$authController = new AuthController();[m
+[31m-$dashboardController = new DashboardController();[m
+[31m-$adminController = new AdminController();[m
+[31m-[m
+[31m-$router->get('/', function () {[m
+[31m-    if (\Core\Auth::check()) {[m
+[31m-        redirect('/dashboard');[m
+[31m-    }[m
+[31m-    return view('home');[m
+[31m-});[m
+[31m-[m
+[31m-$router->get('/login', [$authController, 'showLogin']);[m
+[31m-$router->post('/login', [$authController, 'login']);[m
+[31m-$router->get('/register', [$authController, 'showRegister']);[m
+[31m-$router->post('/register', [$authController, 'register']);[m
+[31m-$router->get('/verify', [$authController, 'verify']);[m
+[31m-$router->get('/logout', [$authController, 'logout']);[m
+[31m-[m
+[31m-$router->get('/dashboard', [$dashboardController, 'index']);[m
+[31m-$router->post('/subdomains', [$dashboardController, 'storeSubdomain']);[m
+[31m-$router->get('/subdomains/check', [$dashboardController, 'checkAvailability']);[m
+[31m-$router->post('/subdomains/transfer', [$dashboardController, 'transfer']);[m
+[31m-$router->post('/subdomains/update', [$dashboardController, 'updateSubdomain']);[m
+[31m-$router->post('/subdomains/renew', [$dashboardController, 'renewSubdomain']);[m
+[31m-$router->post('/subdomains/delete', [$dashboardController, 'deleteSubdomain']);[m
+[31m-[m
+[31m-$router->get('/admin', [$adminController, 'dashboard']);[m
+[31m-$router->get('/admin/settings', [$adminController, 'settings']);[m
+[31m-$router->post('/admin/settings', [$adminController, 'updateSettings']);[m
+[31m-$router->get('/admin/providers', [$adminController, 'providers']);[m
+[31m-$router->post('/admin/providers/save', [$adminController, 'saveProvider']);[m
+[31m-$router->get('/admin/domains', [$adminController, 'domains']);[m
+[31m-$router->post('/admin/domains/save', [$adminController, 'saveDomain']);[m
+[31m-$router->get('/admin/subdomains', [$adminController, 'subdomains']);[m
+[31m-$router->post('/admin/subdomains/approve', [$adminController, 'approveSubdomain']);[m
+[31m-$router->post('/admin/subdomains/reject', [$adminController, 'rejectSubdomain']);[m
+[31m-[m
+[31m-$method = $_SERVER['REQUEST_METHOD'];[m
+[31m-$path = $_SERVER['REQUEST_URI'];[m
+[31m-[m
+[31m-if ($method === 'POST') {[m
+[31m-    if (!Session::verifyCsrf($_POST['_token'] ?? null)) {[m
+[31m-        http_response_code(419);[m
+[31m-        echo 'CSRF Token 校验失败';[m
+[31m-        exit;[m
+[31m-    }[m
+[31m-}[m
+[31m-[m
+[31m-$router->dispatch($method, $path);[m
+[32m+[m[32m$app->loadRoutes();[m
+[32m+[m[32m$app->run()->send();[m
+[1mdiff --git a/src/Controllers/AdminController.php b/src/Controllers/AdminController.php[m
+[1mdeleted file mode 100644[m
+[1mindex e7853da..0000000[m
+[1m--- a/src/Controllers/AdminController.php[m
+[1m+++ /dev/null[m
+[36m@@ -1,224 +0,0 @@[m
+[31m-<?php[m
+[31m-declare(strict_types=1);[m
+[31m-[m
+[31m-namespace Controllers;[m
+[31m-[m
+[31m-use Core\Auth;[m
+[31m-use Core\Session;[m
+[31m-use Models\DomainProvider;[m
+[31m-use Models\PrimaryDomain;[m
+[31m-use Models\Setting;[m
+[31m-use Models\Subdomain;[m
+[31m-use Services\SubdomainService;[m
+[31m-use RuntimeException;[m
+[31m-[m
+[31m-/**[m
+[31m- * 后台管理控制器[m
+[31m- */[m
+[31m-class AdminController[m
+[31m-{[m
+[31m-    private function ensureAdmin(): void[m
+[31m-    {[m
+[31m-        $user = Auth::user();[m
+[31m-        if (!$user || !$user->isAdmin()) {[m
+[31m-            Session::flash('error', '无权访问后台');[m
+[31m-            redirect('/login');[m
+[31m-        }[m
+[31m-    }[m
+[31m-[m
+[31m-    public function dashboard(): string[m
+[31m-    {[m
+[31m-        $this->ensureAdmin();[m
+[31m-[m
+[31m-        $pendingCount = $this->countByStatus('pending');[m
+[31m-        $activeCount = $this->countByStatus('active');[m
+[31m-        $providers = DomainProvider::all();[m
+[31m-        $domains = PrimaryDomain::all();[m
+[31m-[m
+[31m-        return view('admin/dashboard', [[m
+[31m-            'pendingCount' => $pendingCount,[m
+[31m-            'activeCount' => $activeCount,[m
+[31m-            'providers' => $providers,[m
+[31m-            'domains' => $domains,[m
+[31m-        ]);[m
+[31m-    }[m
+[31m-[m
+[31m-    public function settings(): string[m
+[31m-    {[m
+[31m-        $this->ensureAdmin();[m
+[31m-[m
+[31m-        $settings = [[m
+[31m-            'subdomain.auto_review' => Setting::get('subdomain.auto_review', '1'),[m
+[31m-            'subdomain.initial_valid_days' => Setting::get('subdomain.initial_valid_days', '365'),[m
+[31m-            'user.initial_subdomain_quota' => Setting::get('user.initial_subdomain_quota', '3'),[m
+[31m-        ];[m
+[31m-[m
+[31m-        return view('admin/settings', ['settings' => $settings]);[m
+[31m-    }[m
+[31m-[m
+[31m-    public function updateSettings(): void[m
+[31m-    {[m
+[31m-        $this->ensureAdmin();[m
+[31m-[m
+[31m-        Setting::set('subdomain.auto_review', (string)((int)($_POST['subdomain_auto_review'] ?? 0)));[m
+[31m-        Setting::set('subdomain.initial_valid_days', (string)((int)($_POST['subdomain_initial_valid_days'] ?? 365)));[m
+[31m-        Setting::set('user.initial_subdomain_quota', (string)((int)($_POST['user_initial_subdomain_quota'] ?? 3)));[m
+[31m-[m
+[31m-        Session::flash('success', '设置已更新');[m
+[31m-        redirect('/admin/settings');[m
+[31m-    }[m
+[31m-[m
+[31m-    public function providers(): string[m
+[31m-    {[m
+[31m-        $this->ensureAdmin();[m
+[31m-        $providers = DomainProvider::all();[m
+[31m-        $editingId = (int)($_GET['id'] ?? 0);[m
+[31m-        $editingProvider = $editingId ? DomainProvider::find($editingId) : null;[m
+[31m-        return view('admin/providers', [[m
+[31m-            'providers' => $providers,[m
+[31m-            'editingProvider' => $editingProvider,[m
+[31m-        ]);[m
+[31m-    }[m
+[31m-[m
+[31m-    public function saveProvider(): void[m
+[31m-    {[m
+[31m-        $this->ensureAdmin();[m
+[31m-[m
+[31m-        $id = (int)($_POST['id'] ?? 0);[m
+[31m-        $data = [[m
+[31m-            'name' => trim((string)($_POST['name'] ?? '')),[m
+[31m-            'provider_type' => trim((string)($_POST['provider_type'] ?? '')),[m
+[31m-            'api_key' => trim((string)($_POST['api_key'] ?? '')),[m
+[31m-            'api_secret' => trim((string)($_POST['api_secret'] ?? '')),[m
+[31m-            'api_account' => trim((string)($_POST['api_account'] ?? '')),[m
+[31m-            'extra_params' => $this->prepareExtraParams($_POST['extra_params'] ?? ''),[m
+[31m-        ];[m
+[31m-[m
+[31m-        if ($id > 0) {[m
+[31m-            $provider = DomainProvider::find($id);[m
+[31m-            if ($provider) {[m
+[31m-                $provider->update($data);[m
+[31m-            }[m
+[31m-        } else {[m
+[31m-            DomainProvider::create($data);[m
+[31m-        }[m
+[31m-[m
+[31m-        Session::flash('success', 'DNS 提供商信息已保存');[m
+[31m-        redirect('/admin/providers');[m
+[31m-    }[m
+[31m-[m
+[31m-    public function domains(): string[m
+[31m-    {[m
+[31m-        $this->ensureAdmin();[m
+[31m-        $domains = PrimaryDomain::all();[m
+[31m-        $providers = DomainProvider::all();[m
+[31m-        $editingId = (int)($_GET['id'] ?? 0);[m
+[31m-        $editingDomain = $editingId ? PrimaryDomain::find($editingId) : null;[m
+[31m-        return view('admin/domains', [[m
+[31m-            'domains' => $domains,[m
+[31m-            'providers' => $providers,[m
+[31m-            'editingDomain' => $editingDomain,[m
+[31m-        ]);[m
+[31m-    }[m
+[31m-[m
+[31m-    public function saveDomain(): void[m
+[31m-    {[m
+[31m-        $this->ensureAdmin();[m
+[31m-[m
+[31m-        $id = (int)($_POST['id'] ?? 0);[m
+[31m-        $data = [[m
+[31m-            'domain_provider_id' => (int)($_POST['domain_provider_id'] ?? 0),[m
+[31m-            'domain_name' => trim((string)($_POST['domain_name'] ?? '')),[m
+[31m-            'provider_reference' => trim((string)($_POST['provider_reference'] ?? '')),[m
+[31m-            'description' => trim((string)($_POST['description'] ?? '')) ?: null,[m
+[31m-        ];[m
+[31m-[m
+[31m-        if ($id > 0) {[m
+[31m-            $domain = PrimaryDomain::find($id);[m
+[31m-            if ($domain) {[m
+[31m-                $domain->update($data);[m
+[31m-            }[m
+[31m-        } else {[m
+[31m-            PrimaryDomain::create($data);[m
+[31m-        }[m
+[31m-[m
+[31m-        Session::flash('success', '主域信息已保存');[m
+[31m-        redirect('/admin/domains');[m
+[31m-    }[m
+[31m-[m
+[31m-    public function subdomains(): string[m
+[31m-    {[m
+[31m-        $this->ensureAdmin();[m
+[31m-        $pending = $this->fetchByStatus('pending');[m
+[31m-        return view('admin/subdomains', ['pendingSubdomains' => $pending]);[m
+[31m-    }[m
+[31m-[m
+[31m-    public function approveSubdomain(): void[m
+[31m-    {[m
+[31m-        $this->ensureAdmin();[m
+[31m-        $id = (int)($_POST['subdomain_id'] ?? 0);[m
+[31m-        $ns1 = trim((string)($_POST['ns1'] ?? ''));[m
+[31m-        $ns2 = trim((string)($_POST['ns2'] ?? ''));[m
+[31m-        $subdomain = Subdomain::find($id);[m
+[31m-        if (!$subdomain) {[m
+[31m-            Session::flash('error', '子域不存在');[m
+[31m-            redirect('/admin/subdomains');[m
+[31m-        }[m
+[31m-[m
+[31m-        $service = new SubdomainService();[m
+[31m-        try {[m
+[31m-            $service->approve($subdomain, array_filter([$ns1, $ns2]));[m
+[31m-            Session::flash('success', '子域已审核通过');[m
+[31m-        } catch (RuntimeException $e) {[m
+[31m-            Session::flash('error', $e->getMessage());[m
+[31m-        }[m
+[31m-[m
+[31m-        redirect('/admin/subdomains');[m
+[31m-    }[m
+[31m-[m
+[31m-    public function rejectSubdomain(): void[m
+[31m-    {[m
+[31m-        $this->ensureAdmin();[m
+[31m-        $id = (int)($_POST['subdomain_id'] ?? 0);[m
+[31m-        $subdomain = Subdomain::find($id);[m
+[31m-        if ($subdomain) {[m
+[31m-            $service = new SubdomainService();[m
+[31m-            $service->reject($subdomain);[m
+[31m-            Session::flash('success', '子域已拒绝');[m
+[31m-        }[m
+[31m-        redirect('/admin/subdomains');[m
+[31m-    }[m
+[31m-[m
+[31m-    private function countByStatus(string $status): int[m
+[31m-    {[m
+[31m-        $pdo = \Core\Database::connection();[m
+[31m-        $stmt = $pdo->prepare('SELECT COUNT(*) FROM subdomains WHERE status = :status');[m
+[31m-        $stmt->execute(['status' => $status]);[m
+[31m-        return (int)$stmt->fetchColumn();[m
+[31m-    }[m
+[31m-[m
+[31m-    private function fetchByStatus(string $status): array[m
+[31m-    {[m
+[31m-        $pdo = \Core\Database::connection();[m
+[31m-        $stmt = $pdo->prepare('SELECT * FROM subdomains WHERE status = :status ORDER BY created_at DESC');[m
+[31m-        $stmt->execute(['status' => $status]);[m
+[31m-        $rows = $stmt->fetchAll();[m
+[31m-        return array_map(fn($row) => Subdomain::fromArray($row), $rows);[m
+[31m-    }[m
+[31m-[m
+[31m-    private function prepareExtraParams(string $value): ?string[m
+[31m-    {[m
+[31m-        $value = trim($value);[m
+[31m-        if ($value === '') {[m
+[31m-            return null;[m
+[31m-        }[m
+[31m-[m
+[31m-        $decoded = json_decode($value, true);[m
+[31m-        if (!is_array($decoded)) {[m
+[31m-            Session::flash('error', '扩展参数必须是合法的 JSON 字符串');[m
+[31m-            redirect('/admin/providers');[m
+[31m-        }[m
+[31m-[m
+[31m-        return json_encode($decoded, JSON_UNESCAPED_UNICODE);[m
+[31m-    }[m
+[31m-}[m
+[1mdiff --git a/src/Controllers/AuthController.php b/src/Controllers/AuthController.php[m
+[1mdeleted file mode 100644[m
+[1mindex 5fe0ae4..0000000[m
+[1m--- a/src/Controllers/AuthController.php[m
+[1m+++ /dev/null[m
+[36m@@ -1,131 +0,0 @@[m
+[31m-<?php[m
+[31m-declare(strict_types=1);[m
+[31m-[m
+[31m-namespace Controllers;[m
+[31m-[m
+[31m-use Core\Auth;[m
+[31m-use Core\Session;[m
+[31m-use Models\User;[m
+[31m-use Services\EmailService;[m
+[31m-use Services\UserService;[m
+[31m-use RuntimeException;[m
+[31m-[m
+[31m-/**[m
+[31m- * 认证相关控制器[m
+[31m- */[m
+[31m-class AuthController[m
+[31m-{[m
+[31m-    /**[m
+[31m-     * 显示登录页面[m
+[31m-     */[m
+[31m-    public function showLogin(): string[m
+[31m-    {[m
+[31m-        return view('auth/login');[m
+[31m-    }[m
+[31m-[m
+[31m-    /**[m
+[31m-     * 处理登录请求[m
+[31m-     */[m
+[31m-    public function login(): void[m
+[31m-    {[m
+[31m-        $email = trim((string)($_POST['email'] ?? ''));[m
+[31m-        $password = (string)($_POST['password'] ?? '');[m
+[31m-[m
+[31m-        if (!$email || !$password) {[m
+[31m-            Session::flash('error', '请输入邮箱和密码');[m
+[31m-            Session::flash('_old_input', ['email' => $email]);[m
+[31m-            redirect('/login');[m
+[31m-        }[m
+[31m-[m
+[31m-        if (!Auth::attempt($email, $password)) {[m
+[31m-            Session::flash('error', '登录失败，请检查邮箱是否已验证或密码是否正确');[m
+[31m-            Session::flash('_old_input', ['email' => $email]);[m
+[31m-            redirect('/login');[m
+[31m-        }[m
+[31m-[m
+[31m-        redirect('/dashboard');[m
+[31m-    }[m
+[31m-[m
+[31m-    /**[m
+[31m-     * 显示注册页面[m
+[31m-     */[m
+[31m-    public function showRegister(): string[m
+[31m-    {[m
+[31m-        return view('auth/register');[m
+[31m-    }[m
+[31m-[m
+[31m-    /**[m
+[31m-     * 处理注册请求[m
+[31m-     */[m
+[31m-    public function register(): void[m
+[31m-    {[m
+[31m-        $input = [[m
+[31m-            'email' => trim((string)($_POST['email'] ?? '')),[m
+[31m-            'username' => trim((string)($_POST['username'] ?? '')),[m
+[31m-            'phone' => trim((string)($_POST['phone'] ?? '')),[m
+[31m-            'password' => (string)($_POST['password'] ?? ''),[m
+[31m-            'password_confirmation' => (string)($_POST['password_confirmation'] ?? ''),[m
+[31m-        ];[m
+[31m-[m
+[31m-        $oldInput = $input;[m
+[31m-        unset($oldInput['password'], $oldInput['password_confirmation']);[m
+[31m-        Session::flash('_old_input', $oldInput);[m
+[31m-[m
+[31m-        if (!filter_var($input['email'], FILTER_VALIDATE_EMAIL)) {[m
+[31m-            Session::flash('error', '邮箱格式不正确');[m
+[31m-            redirect('/register');[m
+[31m-        }[m
+[31m-[m
+[31m-        if ($input['password'] !== $input['password_confirmation']) {[m
+[31m-            Session::flash('error', '两次密码输入不一致');[m
+[31m-            redirect('/register');[m
+[31m-        }[m
+[31m-[m
+[31m-        if (strlen($input['password']) < 6) {[m
+[31m-            Session::flash('error', '密码长度至少为 6 位');[m
+[31m-            redirect('/register');[m
+[31m-        }[m
+[31m-[m
+[31m-        $userService = new UserService(new EmailService());[m
+[31m-[m
+[31m-        try {[m
+[31m-            $userService->register($input);[m
+[31m-        } catch (RuntimeException $e) {[m
+[31m-            Session::flash('error', $e->getMessage());[m
+[31m-            redirect('/register');[m
+[31m-        }[m
+[31m-[m
+[31m-        Session::flash('_old_input', []);[m
+[31m-        redirect('/login');[m
+[31m-    }[m
+[31m-[m
+[31m-    /**[m
+[31m-     * 邮箱验证处理[m
+[31m-     */[m
+[31m-    public function verify(): void[m
+[31m-    {[m
+[31m-        $token = (string)($_GET['token'] ?? '');[m
+[31m-        if (!$token) {[m
+[31m-            Session::flash('error', '验证链接无效');[m
+[31m-            redirect('/login');[m
+[31m-        }[m
+[31m-[m
+[31m-        $userService = new UserService(new EmailService());[m
+[31m-        if ($userService->verifyByToken($token)) {[m
+[31m-            Session::flash('success', '邮箱验证成功，请登录');[m
+[31m-        } else {[m
+[31m-            Session::flash('error', '验证链接已失效或不存在');[m
+[31m-        }[m
+[31m-[m
+[31m-        redirect('/login');[m
+[31m-    }[m
+[31m-[m
+[31m-    /**[m
+[31m-     * 退出登录[m
+[31m-     */[m
+[31m-    public function logout(): void[m
+[31m-    {[m
+[31m-        Auth::logout();[m
+[31m-        redirect('/');[m
+[31m-    }[m
+[31m-}[m
+[1mdiff --git a/src/Controllers/DashboardController.php b/src/Controllers/DashboardController.php[m
+[1mdeleted file mode 100644[m
+[1mindex 20bebb3..0000000[m
+[1m--- a/src/Controllers/DashboardController.php[m
+[1m+++ /dev/null[m
+[36m@@ -1,244 +0,0 @@[m
+[31m-<?php[m
+[31m-declare(strict_types=1);[m
+[31m-[m
+[31m-namespace Controllers;[m
+[31m-[m
+[31m-use Core\Auth;[m
+[31m-use Core\Session;[m
+[31m-use Models\PrimaryDomain;[m
+[31m-use Models\Subdomain;[m
+[31m-use Services\SubdomainService;[m
+[31m-use RuntimeException;[m
+[31m-[m
+[31m-/**[m
+[31m- * 用户中心控制器[m
+[31m- */[m
+[31m-class DashboardController[m
+[31m-{[m
+[31m-    /**[m
+[31m-     * 显示控制台首页[m
+[31m-     */[m
+[31m-    public function index(): string[m
+[31m-    {[m
+[31m-        $user = Auth::user();[m
+[31m-        if (!$user) {[m
+[31m-            redirect('/login');[m
+[31m-        }[m
+[31m-[m
+[31m-        $subdomains = Subdomain::forUser($user->id);[m
+[31m-        $primaryDomains = PrimaryDomain::all();[m
+[31m-[m
+[31m-        return view('dashboard/index', [[m
+[31m-            'user' => $user,[m
+[31m-            'subdomains' => $subdomains,[m
+[31m-            'primaryDomains' => $primaryDomains,[m
+[31m-        ]);[m
+[31m-    }[m
+[31m-[m
+[31m-    /**[m
+[31m-     * 处理子域申请表单[m
+[31m-     */[m
+[31m-    public function storeSubdomain(): void[m
+[31m-    {[m
+[31m-        $user = Auth::user();[m
+[31m-        if (!$user) {[m
+[31m-            redirect('/login');[m
+[31m-        }[m
+[31m-[m
+[31m-        $primaryDomainId = (int)($_POST['primary_domain_id'] ?? 0);[m
+[31m-        $label = trim((string)($_POST['label'] ?? ''));[m
+[31m-        $ns1 = trim((string)($_POST['ns1'] ?? ''));[m
+[31m-        $ns2 = trim((string)($_POST['ns2'] ?? ''));[m
+[31m-[m
+[31m-        if (!$primaryDomainId || !$label || !$ns1 || !$ns2) {[m
+[31m-            Session::flash('error', '请完整填写子域和 NS 记录信息');[m
+[31m-            redirect('/dashboard');[m
+[31m-        }[m
+[31m-[m
+[31m-        $domain = PrimaryDomain::find($primaryDomainId);[m
+[31m-        if (!$domain) {[m
+[31m-            Session::flash('error', '主域不存在');[m
+[31m-            redirect('/dashboard');[m
+[31m-        }[m
+[31m-[m
+[31m-        $service = new SubdomainService();[m
+[31m-[m
+[31m-        try {[m
+[31m-            $service->register($user, $domain, $label, [$ns1, $ns2]);[m
+[31m-        } catch (RuntimeException $e) {[m
+[31m-            Session::flash('error', $e->getMessage());[m
+[31m-            redirect('/dashboard');[m
+[31m-        }[m
+[31m-[m
+[31m-        redirect('/dashboard');[m
+[31m-    }[m
+[31m-[m
+[31m-    /**[m
+[31m-     * AJAX 检查子域是否可用[m
+[31m-     */[m
+[31m-    public function checkAvailability(): void[m
+[31m-    {[m
+[31m-        $primaryDomainId = (int)($_GET['primary_domain_id'] ?? 0);[m
+[31m-        $label = trim((string)($_GET['label'] ?? ''));[m
+[31m-[m
+[31m-        $domain = PrimaryDomain::find($primaryDomainId);[m
+[31m-        if (!$domain) {[m
+[31m-            $this->json(['available' => false, 'message' => '主域不存在']);[m
+[31m-            return;[m
+[31m-        }[m
+[31m-[m
+[31m-        try {[m
+[31m-            $service = new SubdomainService();[m
+[31m-            $available = !$service->subdomainExists($domain, $label);[m
+[31m-            $this->json(['available' => $available]);[m
+[31m-        } catch (RuntimeException $e) {[m
+[31m-            $this->json(['available' => false, 'message' => $e->getMessage()]);[m
+[31m-        }[m
+[31m-    }[m
+[31m-[m
+[31m-    /**[m
+[31m-     * 发起子域转移[m
+[31m-     */[m
+[31m-    public function transfer(): void[m
+[31m-    {[m
+[31m-        $user = Auth::user();[m
+[31m-        if (!$user) {[m
+[31m-            redirect('/login');[m
+[31m-        }[m
+[31m-[m
+[31m-        $subdomainId = (int)($_POST['subdomain_id'] ?? 0);[m
+[31m-        $toEmail = trim((string)($_POST['to_email'] ?? ''));[m
+[31m-[m
+[31m-        $subdomain = Subdomain::find($subdomainId);[m
+[31m-        if (!$subdomain || $subdomain->user_id !== $user->id) {[m
+[31m-            Session::flash('error', '只能转移属于自己的子域');[m
+[31m-            redirect('/dashboard');[m
+[31m-        }[m
+[31m-[m
+[31m-        $toUser = \Models\User::findByEmail($toEmail);[m
+[31m-        if (!$toUser) {[m
+[31m-            Session::flash('error', '目标用户不存在');[m
+[31m-            redirect('/dashboard');[m
+[31m-        }[m
+[31m-[m
+[31m-        if (!$toUser->isVerified()) {[m
+[31m-            Session::flash('error', '目标用户尚未完成邮箱验证');[m
+[31m-            redirect('/dashboard');[m
+[31m-        }[m
+[31m-[m
+[31m-        $service = new SubdomainService();[m
+[31m-        try {[m
+[31m-            $service->transfer($subdomain, $user, $toUser);[m
+[31m-        } catch (RuntimeException $e) {[m
+[31m-            Session::flash('error', $e->getMessage());[m
+[31m-        }[m
+[31m-[m
+[31m-        redirect('/dashboard');[m
+[31m-    }[m
+[31m-[m
+[31m-    /**[m
+[31m-     * 更新子域 NS 记录[m
+[31m-     */[m
+[31m-    public function updateSubdomain(): void[m
+[31m-    {[m
+[31m-        $user = Auth::user();[m
+[31m-        if (!$user) {[m
+[31m-            redirect('/login');[m
+[31m-        }[m
+[31m-[m
+[31m-        $subdomainId = (int)($_POST['subdomain_id'] ?? 0);[m
+[31m-        $nsInput = (string)($_POST['ns_records'] ?? '');[m
+[31m-[m
+[31m-        $subdomain = Subdomain::find($subdomainId);[m
+[31m-        if (!$subdomain || $subdomain->user_id !== $user->id) {[m
+[31m-            Session::flash('error', '只能管理属于自己的子域');[m
+[31m-            redirect('/dashboard');[m
+[31m-        }[m
+[31m-[m
+[31m-        $lines = preg_split('/\r\n|\n|\r/', $nsInput) ?: [];[m
+[31m-        $nsRecords = array_values(array_filter(array_map([m
+[31m-            static fn(string $line): string => trim($line),[m
+[31m-            $lines[m
+[31m-        )));[m
+[31m-[m
+[31m-        if (empty($nsRecords)) {[m
+[31m-            Session::flash('error', '请至少填写一条有效的 NS 记录');[m
+[31m-            redirect('/dashboard');[m
+[31m-        }[m
+[31m-[m
+[31m-        $service = new SubdomainService();[m
+[31m-        try {[m
+[31m-            $service->updateRecords($subdomain, $nsRecords);[m
+[31m-            Session::flash('success', '子域 NS 记录已更新');[m
+[31m-        } catch (RuntimeException $e) {[m
+[31m-            Session::flash('error', $e->getMessage());[m
+[31m-        }[m
+[31m-[m
+[31m-        redirect('/dashboard');[m
+[31m-    }[m
+[31m-[m
+[31m-    /**[m
+[31m-     * 续期子域[m
+[31m-     */[m
+[31m-    public function renewSubdomain(): void[m
+[31m-    {[m
+[31m-        $user = Auth::user();[m
+[31m-        if (!$user) {[m
+[31m-            redirect('/login');[m
+[31m-        }[m
+[31m-[m
+[31m-        $subdomainId = (int)($_POST['subdomain_id'] ?? 0);[m
+[31m-        $subdomain = Subdomain::find($subdomainId);[m
+[31m-        if (!$subdomain || $subdomain->user_id !== $user->id) {[m
+[31m-            Session::flash('error', '只能管理属于自己的子域');[m
+[31m-            redirect('/dashboard');[m
+[31m-        }[m
+[31m-[m
+[31m-        $service = new SubdomainService();[m
+[31m-        try {[m
+[31m-            $service->renew($subdomain);[m
+[31m-            Session::flash('success', '子域已成功续期');[m
+[31m-        } catch (RuntimeException $e) {[m
+[31m-            Session::flash('error', $e->getMessage());[m
+[31m-        }[m
+[31m-[m
+[31m-        redirect('/dashboard');[m
+[31m-    }[m
+[31m-[m
+[31m-    /**[m
+[31m-     * 删除子域[m
+[31m-     */[m
+[31m-    public function deleteSubdomain(): void[m
+[31m-    {[m
+[31m-        $user = Auth::user();[m
+[31m-        if (!$user) {[m
+[31m-            redirect('/login');[m
+[31m-        }[m
+[31m-[m
+[31m-        $subdomainId = (int)($_POST['subdomain_id'] ?? 0);[m
+[31m-        $subdomain = Subdomain::find($subdomainId);[m
+[31m-        if (!$subdomain || $subdomain->user_id !== $user->id) {[m
+[31m-            Session::flash('error', '只能管理属于自己的子域');[m
+[31m-            redirect('/dashboard');[m
+[31m-        }[m
+[31m-[m
+[31m-        $service = new SubdomainService();[m
+[31m-        try {[m
+[31m-            $service->delete($subdomain);[m
+[31m-            Session::flash('success', '子域已删除');[m
+[31m-        } catch (RuntimeException $e) {[m
+[31m-            Session::flash('error', $e->getMessage());[m
+[31m-        }[m
+[31m-[m
+[31m-        redirect('/dashboard');[m
+[31m-    }[m
+[31m-[m
+[31m-    /**[m
+[31m-     * 输出 JSON 响应[m
+[31m-     */[m
+[31m-    private function json(array $data): void[m
+[31m-    {[m
+[31m-        header('Content-Type: application/json');[m
+[31m-        echo json_encode($data, JSON_UNESCAPED_UNICODE);[m
+[31m-    }[m
+[31m-}[m
+[1mdiff --git a/src/Core/Router.php b/src/Core/Router.php[m
+[1mdeleted file mode 100644[m
+[1mindex 88938ab..0000000[m
+[1m--- a/src/Core/Router.php[m
+[1m+++ /dev/null[m
+[36m@@ -1,60 +0,0 @@[m
+[31m-<?php[m
+[31m-declare(strict_types=1);[m
+[31m-[m
+[31m-namespace Core;[m
+[31m-[m
+[31m-/**[m
+[31m- * 极简路由器[m
+[31m- */[m
+[31m-class Router[m
+[31m-{[m
+[31m-    /** @var array<string,array<string,callable>> */[m
+[31m-    private array $routes = [];[m
+[31m-[m
+[31m-    public function get(string $path, callable $handler): void[m
+[31m-    {[m
+[31m-        $this->addRoute('GET', $path, $handler);[m
+[31m-    }[m
+[31m-[m
+[31m-    public function post(string $path, callable $handler): void[m
+[31m-    {[m
+[31m-        $this->addRoute('POST', $path, $handler);[m
+[31m-    }[m
+[31m-[m
+[31m-    public function put(string $path, callable $handler): void[m
+[31m-    {[m
+[31m-        $this->addRoute('PUT', $path, $handler);[m
+[31m-    }[m
+[31m-[m
+[31m-    public function delete(string $path, callable $handler): void[m
+[31m-    {[m
+[31m-        $this->addRoute('DELETE', $path, $handler);[m
+[31m-    }[m
+[31m-[m
+[31m-    private function addRoute(string $method, string $path, callable $handler): void[m
+[31m-    {[m
+[31m-        $method = strtoupper($method);[m
+[31m-        $this->routes[$method][$this->normalizePath($path)] = $handler;[m
+[31m-    }[m
+[31m-[m
+[31m-    public function dispatch(string $method, string $path): void[m
+[31m-    {[m
+[31m-        $method = strtoupper($method);[m
+[31m-        $normalizedPath = $this->normalizePath($path);[m
+[31m-[m
+[31m-        if (isset($this->routes[$method][$normalizedPath])) {[m
+[31m-            echo call_user_func($this->routes[$method][$normalizedPath]);[m
+[31m-            return;[m
+[31m-        }[m
+[31m-[m
+[31m-        http_response_code(404);[m
+[31m-        echo view('errors/404');[m
+[31m-    }[m
+[31m-[m
+[31m-    private function normalizePath(string $path): string[m
+[31m-    {[m
+[31m-        $path = parse_url($path, PHP_URL_PATH) ?? '/';[m
+[31m-        $path = rtrim($path, '/');[m
+[31m-        return $path === '' ? '/' : $path;[m
+[31m-    }[m
+[31m-}[m
+[1mdiff --git a/src/bootstrap.php b/src/bootstrap.php[m
+[1mindex 08bf386..64e1613 100644[m
+[1m--- a/src/bootstrap.php[m
+[1m+++ b/src/bootstrap.php[m
+[36m@@ -3,6 +3,24 @@[m [mdeclare(strict_types=1);[m
+ [m
+ // 自动加载类文件[m
+ spl_autoload_register(function (string $class): void {[m
+[32m+[m[32m    $prefixes = [[m
+[32m+[m[32m        'think\\' => __DIR__ . '/../think/',[m
+[32m+[m[32m        'app\\' => __DIR__ . '/../app/',[m
+[32m+[m[32m    ];[m
+[32m+[m
+[32m+[m[32m    foreach ($prefixes as $prefix => $baseDir) {[m
+[32m+[m[32m        if (str_starts_with($class, $prefix)) {[m
+[32m+[m[32m            $relativeClass = substr($class, strlen($prefix));[m
+[32m+[m[32m            $file = $baseDir . str_replace('\\', DIRECTORY_SEPARATOR, $relativeClass) . '.php';[m
+[32m+[m
+[32m+[m[32m            if (file_exists($file)) {[m
+[32m+[m[32m                require_once $file;[m
+[32m+[m[32m            }[m
+[32m+[m
+[32m+[m[32m            return;[m
+[32m+[m[32m        }[m
+[32m+[m[32m    }[m
+[32m+[m
+     $baseDir = __DIR__ . DIRECTORY_SEPARATOR;[m
+     $classPath = str_replace('\\', DIRECTORY_SEPARATOR, $class);[m
+     $file = $baseDir . $classPath . '.php';[m

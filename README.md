@@ -1,6 +1,6 @@
 # 子域分发管理系统
 
-本项目使用原生 PHP + MySQL 构建，用于在多个 DNS 平台（PowerDNS、Cloudflare、阿里云 DNS、DNSPod）之间统一管理主域，并为最终用户分发子域。系统支持邮箱验证注册、子域申请与审核、子域信息查询、账号间转移等功能。
+本项目基于轻量化的 ThinkPHP 风格运行时（自研 kernel）+ MySQL 构建，用于在多个 DNS 平台（PowerDNS、Cloudflare、阿里云 DNS、DNSPod）之间统一管理主域，并为最终用户分发子域。系统支持邮箱验证注册、子域申请与审核、子域信息查询、账号间转移等功能。
 
 ## 功能特性
 
@@ -14,6 +14,12 @@
   - 主域列表
   - 子域审核模式、有效期
   - 用户初始子域配额
+
+## 框架迁移说明
+
+- 核心入口采用 `think\App`，通过 `public/index.php` 调用 `think/bootstrap.php` 完成引导。
+- 业务控制器移至 `app/controller`，命名空间调整为 `app\\controller`，与 ThinkPHP 控制器约定保持一致。
+- 所有路由定义集中到 `route/app.php`，支持 `控制器@方法` 的声明方式，便于后续扩展中间件、分组等能力。
 
 ## 环境要求
 
